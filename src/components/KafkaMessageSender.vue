@@ -1,54 +1,108 @@
 <template>
   <div class="kafka-sender">
-    <h2>Send Message to Kafka</h2>
-    
-    <!-- API Information -->
-    <div class="api-info">
-      <h3>API Configuration</h3>
-      <div class="info-box">
-        <p><strong>API URL:</strong> {{ apiUrl }}</p>
-        <p><strong>Config Status:</strong> <span :class="['status-indicator', configStatus]">{{ configStatusText }}</span></p>
-        <p><strong>API Status:</strong> <span :class="['status-indicator', apiStatus]">{{ apiStatusText }}</span></p>
-        <div v-if="configError" class="error-message">
-          {{ configError }}
+    <div class="container">
+      <header class="app-header">
+        <h1>Kafka Message Sender</h1>
+        <div class="status-badges">
+          <div class="status-badge" :class="configStatus">
+            <span class="status-dot"></span>
+            Config: {{ configStatusText }}
+          </div>
+          <div class="status-badge" :class="apiStatus">
+            <span class="status-dot"></span>
+            API: {{ apiStatusText }}
+          </div>
+        </div>
+      </header>
+
+      <div class="api-info card">
+        <h3>API Configuration</h3>
+        <div class="info-content">
+          <div class="info-item">
+            <label>API URL:</label>
+            <code>{{ apiUrl }}</code>
+          </div>
+          <div v-if="configError" class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ configError }}
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="message-form">
-      <textarea
-        v-model="message"
-        placeholder="Enter your message here..."
-        rows="4"
-        class="message-input"
-      ></textarea>
-      <button @click="sendMessage" :disabled="isLoading || !isConfigLoaded" class="send-button">
-        {{ isLoading ? 'Sending...' : 'Send Message' }}
-      </button>
-    </div>
-
-    <!-- Response/Error Display -->
-    <div v-if="response" :class="['response', response.success ? 'success' : 'error']">
-      <div class="response-header">
-        <strong>{{ response.success ? 'Success' : 'Error' }}</strong>
-        <span class="timestamp">{{ response.timestamp }}</span>
+      <div class="message-form card">
+        <h3>Send Message</h3>
+        <div class="form-content">
+          <div class="input-group">
+            <textarea
+              v-model="message"
+              placeholder="Enter your message here..."
+              rows="4"
+              class="message-input"
+              :class="{ 'error': messageError }"
+              @input="validateMessage"
+            ></textarea>
+            <div class="input-feedback">
+              <span class="char-count">{{ message.length }}/1000</span>
+              <span v-if="messageError" class="error-text">{{ messageError }}</span>
+            </div>
+          </div>
+          
+          <button 
+            @click="sendMessage" 
+            :disabled="isLoading || !isConfigLoaded || !isValidMessage"
+            class="send-button"
+            :class="{ 'loading': isLoading }"
+          >
+            <span class="button-content">
+              <i class="fas" :class="isLoading ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+              {{ isLoading ? 'Sending...' : 'Send Message' }}
+            </span>
+          </button>
+        </div>
       </div>
-      <div class="response-message">{{ response.message }}</div>
-      <div v-if="response.details" class="response-details">
-        <pre>{{ JSON.stringify(response.details, null, 2) }}</pre>
-      </div>
-    </div>
 
-    <!-- Debug Information -->
-    <div v-if="debugInfo" class="debug-info">
-      <h3>Debug Information</h3>
-      <div class="info-box">
-        <p><strong>Config Object:</strong></p>
-        <pre>{{ JSON.stringify(window.runtimeConfig, null, 2) }}</pre>
-        <p><strong>Last Request:</strong> {{ debugInfo.lastRequest }}</p>
-        <p><strong>Last Response:</strong> {{ debugInfo.lastResponse }}</p>
-        <p><strong>Request Headers:</strong></p>
-        <pre>{{ JSON.stringify(debugInfo.headers, null, 2) }}</pre>
+      <div v-if="response" 
+           class="response card"
+           :class="response.success ? 'success' : 'error'"
+           v-enter-animation>
+        <div class="response-header">
+          <div class="response-title">
+            <i class="fas" :class="response.success ? 'fa-check-circle' : 'fa-exclamation-circle'"></i>
+            {{ response.success ? 'Success' : 'Error' }}
+          </div>
+          <span class="timestamp">{{ formatTimestamp(response.timestamp) }}</span>
+        </div>
+        <div class="response-message">{{ response.message }}</div>
+        <div v-if="response.details" class="response-details">
+          <pre>{{ JSON.stringify(response.details, null, 2) }}</pre>
+        </div>
+      </div>
+
+      <div v-if="debugInfo" class="debug-info card">
+        <div class="debug-header">
+          <h3>Debug Information</h3>
+          <button class="toggle-button" @click="toggleDebug">
+            <i class="fas" :class="showDebug ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+        </div>
+        <div v-show="showDebug" class="debug-content">
+          <div class="debug-section">
+            <h4>Config Object</h4>
+            <pre>{{ JSON.stringify(window.runtimeConfig, null, 2) }}</pre>
+          </div>
+          <div class="debug-section">
+            <h4>Last Request</h4>
+            <p>{{ debugInfo.lastRequest }}</p>
+          </div>
+          <div class="debug-section">
+            <h4>Last Response</h4>
+            <p>{{ debugInfo.lastResponse }}</p>
+          </div>
+          <div class="debug-section">
+            <h4>Request Headers</h4>
+            <pre>{{ JSON.stringify(debugInfo.headers, null, 2) }}</pre>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -69,13 +123,34 @@ export default {
       configStatusText: 'Loading...',
       configError: null,
       isConfigLoaded: false,
-      debugInfo: null
+      debugInfo: null,
+      showDebug: false,
+      messageError: '',
+      isValidMessage: false
     }
   },
   created() {
     this.loadConfig()
   },
   methods: {
+    formatTimestamp(timestamp) {
+      return new Date(timestamp).toLocaleString()
+    },
+    validateMessage() {
+      if (this.message.length > 1000) {
+        this.messageError = 'Message exceeds 1000 characters'
+        this.isValidMessage = false
+      } else if (!this.message.trim()) {
+        this.messageError = 'Message cannot be empty'
+        this.isValidMessage = false
+      } else {
+        this.messageError = ''
+        this.isValidMessage = true
+      }
+    },
+    toggleDebug() {
+      this.showDebug = !this.showDebug
+    },
     loadConfig() {
       try {
         // Check if config is already loaded
@@ -196,80 +271,185 @@ export default {
         this.isLoading = false
       }
     }
+  },
+  directives: {
+    enterAnimation: {
+      inserted: function(el) {
+        el.style.opacity = '0'
+        el.style.transform = 'translateY(20px)'
+        setTimeout(() => {
+          el.style.transition = 'all 0.3s ease'
+          el.style.opacity = '1'
+          el.style.transform = 'translateY(0)'
+        }, 50)
+      }
+    }
   }
 }
 </script>
 
 <style scoped>
 .kafka-sender {
+  min-height: 100vh;
+  background-color: #f5f7fa;
+  padding: 2rem;
+}
+
+.container {
   max-width: 800px;
   margin: 0 auto;
-  padding: 20px;
 }
 
-.api-info {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
 }
 
-.info-box {
-  background-color: white;
-  padding: 15px;
-  border-radius: 4px;
-  border: 1px solid #dee2e6;
+.app-header h1 {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 2rem;
 }
 
-.status-indicator {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
+.status-badges {
+  display: flex;
+  gap: 1rem;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  margin-right: 5px;
+  margin-right: 0.5rem;
 }
 
-.status-indicator.online {
-  background-color: #28a745;
+.status-badge.online .status-dot {
+  background-color: #42b983;
 }
 
-.status-indicator.error {
+.status-badge.error .status-dot {
   background-color: #dc3545;
 }
 
-.status-indicator.unknown {
+.status-badge.unknown .status-dot {
   background-color: #ffc107;
 }
 
-.message-form {
+.card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card h3 {
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.info-content {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  margin: 20px 0;
+  gap: 1rem;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.info-item label {
+  font-weight: 600;
+  color: #666;
+}
+
+.info-item code {
+  background: #f8f9fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.message-form {
+  margin-top: 2rem;
+}
+
+.input-group {
+  position: relative;
+  margin-bottom: 1rem;
 }
 
 .message-input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
+  padding: 1rem;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 1rem;
   resize: vertical;
+  min-height: 120px;
+  transition: all 0.3s ease;
+}
+
+.message-input:focus {
+  outline: none;
+  border-color: #42b983;
+  box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.1);
+}
+
+.message-input.error {
+  border-color: #dc3545;
+}
+
+.input-feedback {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.char-count {
+  color: #666;
+}
+
+.error-text {
+  color: #dc3545;
 }
 
 .send-button {
-  padding: 10px 20px;
+  width: 100%;
+  padding: 1rem;
   background-color: #42b983;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
+  font-size: 1rem;
   cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.send-button:hover {
+.send-button:hover:not(:disabled) {
   background-color: #3aa876;
+  transform: translateY(-1px);
 }
 
 .send-button:disabled {
@@ -277,74 +457,117 @@ export default {
   cursor: not-allowed;
 }
 
+.send-button.loading {
+  cursor: wait;
+}
+
+.button-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .response {
-  margin-top: 20px;
-  padding: 15px;
-  border-radius: 4px;
+  margin-top: 1.5rem;
+  transition: all 0.3s ease;
 }
 
 .response-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 1rem;
+}
+
+.response-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
 }
 
 .timestamp {
-  font-size: 0.8em;
+  font-size: 0.9rem;
   color: #666;
 }
 
-.success {
+.response.success {
   background-color: #d4edda;
-  color: #155724;
   border: 1px solid #c3e6cb;
 }
 
-.error {
+.response.error {
   background-color: #f8d7da;
-  color: #721c24;
   border: 1px solid #f5c6cb;
 }
 
 .response-details {
-  margin-top: 10px;
-  padding: 10px;
+  margin-top: 1rem;
+  padding: 1rem;
   background-color: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
+  overflow-x: auto;
 }
 
-.debug-info {
-  margin-top: 30px;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.debug-info pre {
-  background-color: #f8f9fa;
-  padding: 10px;
+.toggle-button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: transform 0.3s ease;
+}
+
+.toggle-button:hover {
+  color: #2c3e50;
+}
+
+.debug-content {
+  margin-top: 1rem;
+}
+
+.debug-section {
+  margin-bottom: 1.5rem;
+}
+
+.debug-section h4 {
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.debug-section pre {
+  background: #f8f9fa;
+  padding: 1rem;
   border-radius: 4px;
   overflow-x: auto;
-  font-size: 0.9em;
-}
-
-.error-message {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #f8d7da;
-  color: #721c24;
-  border-radius: 4px;
-  font-size: 0.9em;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {
   .kafka-sender {
-    padding: 10px;
+    padding: 1rem;
   }
-  
-  .message-input {
-    font-size: 14px;
+
+  .app-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .status-badges {
+    flex-direction: column;
+  }
+
+  .info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 }
 </style> 
