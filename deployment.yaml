@@ -17,7 +17,7 @@ spec:
       - name: vue-app
         image: tudaolw/sample:front
         ports:
-        - containerPort: 80
+        - containerPort: 8080
         volumeMounts:
         - name: config-volume
           mountPath: /usr/share/nginx/html/config.js
