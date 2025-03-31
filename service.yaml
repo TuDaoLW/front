@@ -1,0 +1,13 @@
+# filepath: service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: vue-app-service
+spec:
+  selector:
+    app: vue-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP

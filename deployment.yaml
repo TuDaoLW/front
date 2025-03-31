@@ -1,0 +1,28 @@
+# filepath: deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vue-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vue-app
+  template:
+    metadata:
+      labels:
+        app: vue-app
+    spec:
+      containers:
+      - name: vue-app
+        image: tudaolw/sample:front
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: config-volume
+          mountPath: /usr/share/nginx/html/config.js
+          subPath: config.js
+      volumes:
+      - name: config-volume
+        configMap:
+          name: vue-app-config
