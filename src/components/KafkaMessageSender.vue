@@ -7,7 +7,11 @@
       <h3>API Configuration</h3>
       <div class="info-box">
         <p><strong>API URL:</strong> {{ apiUrl }}</p>
-        <p><strong>Status:</strong> <span :class="['status-indicator', apiStatus]">{{ apiStatusText }}</span></p>
+        <p><strong>Config Status:</strong> <span :class="['status-indicator', configStatus]">{{ configStatusText }}</span></p>
+        <p><strong>API Status:</strong> <span :class="['status-indicator', apiStatus]">{{ apiStatusText }}</span></p>
+        <div v-if="configError" class="error-message">
+          {{ configError }}
+        </div>
       </div>
     </div>
 
@@ -18,7 +22,7 @@
         rows="4"
         class="message-input"
       ></textarea>
-      <button @click="sendMessage" :disabled="isLoading" class="send-button">
+      <button @click="sendMessage" :disabled="isLoading || !isConfigLoaded" class="send-button">
         {{ isLoading ? 'Sending...' : 'Send Message' }}
       </button>
     </div>
@@ -39,6 +43,8 @@
     <div v-if="debugInfo" class="debug-info">
       <h3>Debug Information</h3>
       <div class="info-box">
+        <p><strong>Config Object:</strong></p>
+        <pre>{{ JSON.stringify(window.runtimeConfig, null, 2) }}</pre>
         <p><strong>Last Request:</strong> {{ debugInfo.lastRequest }}</p>
         <p><strong>Last Response:</strong> {{ debugInfo.lastResponse }}</p>
         <p><strong>Request Headers:</strong></p>
@@ -56,17 +62,62 @@ export default {
       message: '',
       isLoading: false,
       response: null,
-      apiUrl: window.runtimeConfig?.VUE_APP_API_URL || 'Not configured',
+      apiUrl: 'Loading...',
       apiStatus: 'unknown',
       apiStatusText: 'Checking...',
+      configStatus: 'unknown',
+      configStatusText: 'Loading...',
+      configError: null,
+      isConfigLoaded: false,
       debugInfo: null
     }
   },
   created() {
-    this.checkApiStatus()
+    this.loadConfig()
   },
   methods: {
+    loadConfig() {
+      try {
+        // Check if config is already loaded
+        if (window.runtimeConfig && window.runtimeConfig.VUE_APP_API_URL) {
+          this.apiUrl = window.runtimeConfig.VUE_APP_API_URL
+          this.configStatus = 'online'
+          this.configStatusText = 'Loaded'
+          this.isConfigLoaded = true
+          this.checkApiStatus()
+        } else {
+          // Try to load config.js
+          const script = document.createElement('script')
+          script.src = '/config.js'
+          script.onload = () => {
+            if (window.runtimeConfig && window.runtimeConfig.VUE_APP_API_URL) {
+              this.apiUrl = window.runtimeConfig.VUE_APP_API_URL
+              this.configStatus = 'online'
+              this.configStatusText = 'Loaded'
+              this.isConfigLoaded = true
+              this.checkApiStatus()
+            } else {
+              this.configStatus = 'error'
+              this.configStatusText = 'Invalid Config'
+              this.configError = 'Config file loaded but VUE_APP_API_URL is not defined'
+            }
+          }
+          script.onerror = () => {
+            this.configStatus = 'error'
+            this.configStatusText = 'Failed to Load'
+            this.configError = 'Failed to load config.js file'
+          }
+          document.head.appendChild(script)
+        }
+      } catch (error) {
+        this.configStatus = 'error'
+        this.configStatusText = 'Error'
+        this.configError = `Error loading config: ${error.message}`
+      }
+    },
     async checkApiStatus() {
+      if (!this.isConfigLoaded) return
+      
       try {
         const response = await fetch(`${this.apiUrl}/health`)
         this.apiStatus = response.ok ? 'online' : 'error'
@@ -81,6 +132,15 @@ export default {
         this.response = {
           success: false,
           message: 'Please enter a message',
+          timestamp: new Date().toISOString()
+        }
+        return
+      }
+
+      if (!this.isConfigLoaded) {
+        this.response = {
+          success: false,
+          message: 'Configuration not loaded. Please refresh the page.',
           timestamp: new Date().toISOString()
         }
         return
@@ -266,6 +326,15 @@ export default {
   padding: 10px;
   border-radius: 4px;
   overflow-x: auto;
+  font-size: 0.9em;
+}
+
+.error-message {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f8d7da;
+  color: #721c24;
+  border-radius: 4px;
   font-size: 0.9em;
 }
 
