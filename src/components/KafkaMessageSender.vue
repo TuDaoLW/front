@@ -1,6 +1,16 @@
 <template>
   <div class="kafka-sender">
     <h2>Send Message to Kafka</h2>
+    
+    <!-- API Information -->
+    <div class="api-info">
+      <h3>API Configuration</h3>
+      <div class="info-box">
+        <p><strong>API URL:</strong> {{ apiUrl }}</p>
+        <p><strong>Status:</strong> <span :class="['status-indicator', apiStatus]">{{ apiStatusText }}</span></p>
+      </div>
+    </div>
+
     <div class="message-form">
       <textarea
         v-model="message"
@@ -12,8 +22,28 @@
         {{ isLoading ? 'Sending...' : 'Send Message' }}
       </button>
     </div>
+
+    <!-- Response/Error Display -->
     <div v-if="response" :class="['response', response.success ? 'success' : 'error']">
-      {{ response.message }}
+      <div class="response-header">
+        <strong>{{ response.success ? 'Success' : 'Error' }}</strong>
+        <span class="timestamp">{{ response.timestamp }}</span>
+      </div>
+      <div class="response-message">{{ response.message }}</div>
+      <div v-if="response.details" class="response-details">
+        <pre>{{ JSON.stringify(response.details, null, 2) }}</pre>
+      </div>
+    </div>
+
+    <!-- Debug Information -->
+    <div v-if="debugInfo" class="debug-info">
+      <h3>Debug Information</h3>
+      <div class="info-box">
+        <p><strong>Last Request:</strong> {{ debugInfo.lastRequest }}</p>
+        <p><strong>Last Response:</strong> {{ debugInfo.lastResponse }}</p>
+        <p><strong>Request Headers:</strong></p>
+        <pre>{{ JSON.stringify(debugInfo.headers, null, 2) }}</pre>
+      </div>
     </div>
   </div>
 </template>
@@ -25,15 +55,33 @@ export default {
     return {
       message: '',
       isLoading: false,
-      response: null
+      response: null,
+      apiUrl: window.runtimeConfig?.VUE_APP_API_URL || 'Not configured',
+      apiStatus: 'unknown',
+      apiStatusText: 'Checking...',
+      debugInfo: null
     }
   },
+  created() {
+    this.checkApiStatus()
+  },
   methods: {
+    async checkApiStatus() {
+      try {
+        const response = await fetch(`${this.apiUrl}/health`)
+        this.apiStatus = response.ok ? 'online' : 'error'
+        this.apiStatusText = response.ok ? 'Online' : 'Error'
+      } catch (error) {
+        this.apiStatus = 'error'
+        this.apiStatusText = 'Offline'
+      }
+    },
     async sendMessage() {
       if (!this.message.trim()) {
         this.response = {
           success: false,
-          message: 'Please enter a message'
+          message: 'Please enter a message',
+          timestamp: new Date().toISOString()
         }
         return
       }
@@ -41,28 +89,48 @@ export default {
       this.isLoading = true
       this.response = null
 
+      const headers = {
+        'Content-Type': 'text/plain'
+      }
+
       try {
-        const response = await fetch(`${window.runtimeConfig.VUE_APP_API_URL}/send`, {
+        const response = await fetch(`${this.apiUrl}/send`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain'
-          },
+          headers,
           body: this.message
         })
+
+        // Update debug information
+        this.debugInfo = {
+          lastRequest: new Date().toISOString(),
+          lastResponse: response.status,
+          headers
+        }
 
         if (response.ok) {
           this.response = {
             success: true,
-            message: 'Message sent successfully!'
+            message: 'Message sent successfully!',
+            timestamp: new Date().toISOString(),
+            details: {
+              status: response.status,
+              statusText: response.statusText
+            }
           }
           this.message = ''
         } else {
-          throw new Error('Failed to send message')
+          const errorText = await response.text()
+          throw new Error(`Server error: ${response.status} - ${errorText}`)
         }
       } catch (error) {
         this.response = {
           success: false,
-          message: `Error: ${error.message}`
+          message: `Error: ${error.message}`,
+          timestamp: new Date().toISOString(),
+          details: {
+            error: error.message,
+            stack: error.stack
+          }
         }
       } finally {
         this.isLoading = false
@@ -74,9 +142,43 @@ export default {
 
 <style scoped>
 .kafka-sender {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px;
+}
+
+.api-info {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.info-box {
+  background-color: white;
+  padding: 15px;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.status-indicator.online {
+  background-color: #28a745;
+}
+
+.status-indicator.error {
+  background-color: #dc3545;
+}
+
+.status-indicator.unknown {
+  background-color: #ffc107;
 }
 
 .message-form {
@@ -117,8 +219,20 @@ export default {
 
 .response {
   margin-top: 20px;
-  padding: 10px;
+  padding: 15px;
   border-radius: 4px;
+}
+
+.response-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.timestamp {
+  font-size: 0.8em;
+  color: #666;
 }
 
 .success {
@@ -131,5 +245,37 @@ export default {
   background-color: #f8d7da;
   color: #721c24;
   border: 1px solid #f5c6cb;
+}
+
+.response-details {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.debug-info {
+  margin-top: 30px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.debug-info pre {
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.9em;
+}
+
+@media (max-width: 768px) {
+  .kafka-sender {
+    padding: 10px;
+  }
+  
+  .message-input {
+    font-size: 14px;
+  }
 }
 </style> 

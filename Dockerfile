@@ -25,8 +25,14 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy the built app from build stage
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
-# Copy the config.js file
+# Copy the config.js file if not mounted from ConfigMap
 COPY public/config.js /usr/share/nginx/html/config.js
+
+# Create directory for config.js with proper permissions
+#RUN mkdir -p /usr/share/nginx/html && \
+#    touch /usr/share/nginx/html/config.js && \
+#    chown -R nginx:nginx /usr/share/nginx/html && \
+#    chmod 644 /usr/share/nginx/html/config.js
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=3s \
