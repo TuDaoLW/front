@@ -137,8 +137,8 @@ export default {
       this.loadConfig()
     }, 5000)
   },
-  beforeDestroy() {
-    // Clean up the interval when component is destroyed
+  beforeUnmount() {
+    // Clean up the interval when component is unmounted
     if (this.configCheckInterval) {
       clearInterval(this.configCheckInterval)
     }
