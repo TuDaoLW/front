@@ -2,27 +2,57 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vue-app
+  name: kafka-frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vue-app
+      app: kafka-frontend
   template:
     metadata:
       labels:
-        app: vue-app
+        app: kafka-frontend
     spec:
+      securityContext:
+        fsGroup: 101  # nginx group ID
       containers:
-      - name: vue-app
-        image: tudaolw/sample:front
+      - name: kafka-frontend
+        image: your-frontend-image
         ports:
         - containerPort: 8080
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 101  # nginx user ID
         volumeMounts:
         - name: config-volume
           mountPath: /usr/share/nginx/html/config.js
           subPath: config.js
+        - name: nginx-cache
+          mountPath: /var/cache/nginx
+        - name: nginx-run
+          mountPath: /var/run
       volumes:
       - name: config-volume
         configMap:
-          name: vue-app-config
+          name: frontend-config
+      - name: nginx-cache
+        emptyDir: {}
+      - name: nginx-run
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-frontend
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: kafka-frontend
