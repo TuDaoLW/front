@@ -35,7 +35,7 @@ export default {
       message: '',
       isLoading: false,
       response: null,
-      apiUrl: 'http://kafka-producer-service:8081'
+      apiUrl: 'http://kafka-producer-service-kafka.apps.okd4.elc.com'
     }
   },
   methods: {
