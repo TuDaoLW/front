@@ -35,7 +35,7 @@ export default {
       message: '',
       isLoading: false,
       response: null,
-      apiUrl: 'http://kafka-producer-service-kafka.apps.okd4.elc.com'
+      apiUrl: 'http://kafka-producer-service:8081'
     }
   },
   methods: {
@@ -49,8 +49,11 @@ export default {
         const response = await fetch(`${this.apiUrl}/send`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'text/plain'
+            'Content-Type': 'text/plain',
+            'Accept': 'text/plain'
           },
+          mode: 'cors',
+          credentials: 'omit',
           body: this.message
         })
 
@@ -58,6 +61,7 @@ export default {
         this.response = responseText
         this.message = ''
       } catch (error) {
+        console.error('Send message failed:', error)
         this.response = `Error: ${error.message}`
       } finally {
         this.isLoading = false
