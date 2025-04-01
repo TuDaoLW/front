@@ -164,46 +164,38 @@ export default {
     },
     async loadConfig() {
       try {
-        // Fetch the config file directly
+        this.configStatus = 'loading'
+        this.configStatusText = 'Loading configuration...'
+        this.isConfigLoaded = false
+        
+        // Try to load from config.js
         const response = await fetch('/config.js')
         if (!response.ok) {
-          throw new Error(`Failed to load config: ${response.status}`)
+          throw new Error(`HTTP error! status: ${response.status}`)
         }
+        const text = await response.text()
         
-        // Get the current config content
-        const configText = await response.text()
-        
-        // Parse the config content
-        const configMatch = configText.match(/window\.runtimeConfig\s*=\s*({[\s\S]*?});/)
-        if (!configMatch) {
-          throw new Error('Invalid config format')
-        }
-        
-        // Evaluate the config object safely
-        const configStr = configMatch[1]
-        const config = JSON.parse(configStr.replace(/'/g, '"'))
-        
-        // Update the API URL if it has changed
-        if (config.VUE_APP_API_URL !== this.apiUrl) {
-          this.apiUrl = config.VUE_APP_API_URL
-          this.configStatus = 'online'
-          this.configStatusText = 'Loaded'
+        // Try to extract the URL using regex
+        const urlMatch = text.match(/VUE_APP_API_URL:\s*['"]([^'"]+)['"]/)
+        if (urlMatch && urlMatch[1]) {
+          this.apiUrl = urlMatch[1]
+          this.configStatus = 'success'
+          this.configStatusText = 'Configuration loaded successfully'
           this.isConfigLoaded = true
           this.configError = null
-          
-          // Update debug info
-          if (this.debugInfo) {
-            this.debugInfo.config = config
-          }
-          
-          // Check API status with new URL
-          this.checkApiStatus()
+        } else {
+          throw new Error('Invalid config format')
         }
       } catch (error) {
+        console.error('Error loading config:', error)
         this.configStatus = 'error'
-        this.configStatusText = 'Error'
-        this.configError = `Error loading config: ${error.message}`
+        this.configStatusText = 'Failed to load configuration'
+        this.configError = error.message
         this.isConfigLoaded = false
+        
+        // Set fallback default API URL
+        this.apiUrl = 'http://kafka-producer-service-kafka.apps.okd4.elc.com'
+        this.configStatusText = 'Using fallback configuration'
       }
     },
     async checkApiStatus() {
