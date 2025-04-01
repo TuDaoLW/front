@@ -35,7 +35,7 @@
           <div class="input-group">
             <textarea
               v-model="message"
-              placeholder="Enter your message here..."
+              placeholder="jeet Enter your message here..."
               rows="4"
               class="message-input"
               :class="{ 'error': messageError }"
