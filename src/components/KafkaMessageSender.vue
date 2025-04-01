@@ -190,18 +190,26 @@ export default {
 
       try {
         console.log('Sending message to:', `${this.apiUrl}/send`)
+        console.log('Request headers:', headers)
+        
         const response = await fetch(`${this.apiUrl}/send`, {
           method: 'POST',
           headers,
-          body: this.message
+          body: this.message,
+          mode: 'cors',  // Explicitly set CORS mode
+          credentials: 'omit'  // Don't send credentials
         })
+
+        console.log('Response status:', response.status)
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()))
 
         // Update debug information
         this.debugInfo = {
           lastRequest: new Date().toISOString(),
           lastResponse: response.status,
           headers,
-          requestUrl: `${this.apiUrl}/send`
+          requestUrl: `${this.apiUrl}/send`,
+          responseHeaders: Object.fromEntries(response.headers.entries())
         }
 
         if (response.ok) {
@@ -221,6 +229,13 @@ export default {
         }
       } catch (error) {
         console.error('Send message failed:', error)
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+          url: `${this.apiUrl}/send`
+        })
+        
         this.response = {
           success: false,
           message: `Error: ${error.message}`,
@@ -228,7 +243,8 @@ export default {
           details: {
             error: error.message,
             stack: error.stack,
-            url: `${this.apiUrl}/send`
+            url: `${this.apiUrl}/send`,
+            type: error.name
           }
         }
       } finally {
