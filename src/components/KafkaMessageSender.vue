@@ -126,11 +126,22 @@ export default {
       debugInfo: null,
       showDebug: false,
       messageError: '',
-      isValidMessage: false
+      isValidMessage: false,
+      configCheckInterval: null
     }
   },
   created() {
     this.loadConfig()
+    // Check for config changes every 5 seconds
+    this.configCheckInterval = setInterval(() => {
+      this.loadConfig()
+    }, 5000)
+  },
+  beforeDestroy() {
+    // Clean up interval when component is destroyed
+    if (this.configCheckInterval) {
+      clearInterval(this.configCheckInterval)
+    }
   },
   methods: {
     formatTimestamp(timestamp) {
@@ -151,43 +162,39 @@ export default {
     toggleDebug() {
       this.showDebug = !this.showDebug
     },
-    loadConfig() {
+    async loadConfig() {
       try {
-        // Check if config is already loaded
-        if (window.runtimeConfig && window.runtimeConfig.VUE_APP_API_URL) {
-          this.apiUrl = window.runtimeConfig.VUE_APP_API_URL
+        // Fetch the config.js file directly
+        const response = await fetch('/config.js')
+        if (!response.ok) {
+          throw new Error(`Failed to load config: ${response.status}`)
+        }
+        
+        // Get the current config content
+        const configContent = await response.text()
+        
+        // Execute the config content in a new context
+        const configContext = {}
+        const configScript = new Function('window', configContent)
+        configScript(configContext)
+        
+        // Check if the config was updated
+        const newApiUrl = configContext.runtimeConfig?.VUE_APP_API_URL
+        if (newApiUrl && newApiUrl !== this.apiUrl) {
+          console.log('Config updated:', newApiUrl)
+          this.apiUrl = newApiUrl
           this.configStatus = 'online'
           this.configStatusText = 'Loaded'
           this.isConfigLoaded = true
+          this.configError = null
           this.checkApiStatus()
-        } else {
-          // Try to load config.js
-          const script = document.createElement('script')
-          script.src = '/config.js'
-          script.onload = () => {
-            if (window.runtimeConfig && window.runtimeConfig.VUE_APP_API_URL) {
-              this.apiUrl = window.runtimeConfig.VUE_APP_API_URL
-              this.configStatus = 'online'
-              this.configStatusText = 'Loaded'
-              this.isConfigLoaded = true
-              this.checkApiStatus()
-            } else {
-              this.configStatus = 'error'
-              this.configStatusText = 'Invalid Config'
-              this.configError = 'Config file loaded but VUE_APP_API_URL is not defined'
-            }
-          }
-          script.onerror = () => {
-            this.configStatus = 'error'
-            this.configStatusText = 'Failed to Load'
-            this.configError = 'Failed to load config.js file'
-          }
-          document.head.appendChild(script)
         }
       } catch (error) {
+        console.error('Error loading config:', error)
         this.configStatus = 'error'
         this.configStatusText = 'Error'
         this.configError = `Error loading config: ${error.message}`
+        this.isConfigLoaded = false
       }
     },
     async checkApiStatus() {
