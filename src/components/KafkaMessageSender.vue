@@ -116,13 +116,13 @@ export default {
       message: '',
       isLoading: false,
       response: null,
-      apiUrl: 'Loading...',
+      apiUrl: 'http://kafka-producer-service-kafka.apps.okd4.elc.com',
       apiStatus: 'unknown',
       apiStatusText: 'Checking...',
-      configStatus: 'unknown',
-      configStatusText: 'Loading...',
+      configStatus: 'success',
+      configStatusText: 'Using fixed configuration',
       configError: null,
-      isConfigLoaded: false,
+      isConfigLoaded: true,
       debugInfo: null,
       showDebug: false,
       messageError: '',
@@ -130,7 +130,8 @@ export default {
     }
   },
   created() {
-    this.loadConfig()
+    // Check API status on component creation
+    this.checkApiStatus()
   },
   methods: {
     formatTimestamp(timestamp) {
@@ -151,50 +152,22 @@ export default {
     toggleDebug() {
       this.showDebug = !this.showDebug
     },
-    async loadConfig() {
-      try {
-        this.configStatus = 'loading'
-        this.configStatusText = 'Loading configuration...'
-        this.isConfigLoaded = false
-        
-        // Load from config.js
-        const response = await fetch('/config.js')
-        if (!response.ok) {
-          throw new Error(`Failed to load config.js: ${response.status}`)
-        }
-        const text = await response.text()
-        
-        // Extract the URL from config.js
-        const urlMatch = text.match(/VUE_APP_API_URL:\s*["']([^"']+)["']/)
-        if (urlMatch && urlMatch[1]) {
-          this.apiUrl = urlMatch[1]
-          this.configStatus = 'success'
-          this.configStatusText = 'Configuration loaded successfully'
-          this.isConfigLoaded = true
-          this.configError = null
-          // Check API status with loaded URL
-          this.checkApiStatus()
-        } else {
-          throw new Error('Invalid config format: Missing VUE_APP_API_URL')
-        }
-      } catch (error) {
-        console.error('Error loading config:', error)
-        this.configStatus = 'error'
-        this.configStatusText = `Configuration error: ${error.message}`
-        this.configError = error.message
-        this.isConfigLoaded = false
-      }
-    },
     async checkApiStatus() {
-      if (!this.isConfigLoaded) return
-      
       try {
-        const response = await fetch(`${this.apiUrl}/health`)
+        console.log('Checking API status at:', `${this.apiUrl}/health`)
+        const response = await fetch(`${this.apiUrl}/health`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        })
+        console.log('Health check response:', response.status, response.statusText)
         this.apiStatus = response.ok ? 'online' : 'error'
-        this.apiStatusText = response.ok ? 'Online' : 'Error'
+        this.apiStatusText = response.ok ? 'Online' : `Error: ${response.status}`
       } catch (error) {
+        console.error('Health check failed:', error)
         this.apiStatus = 'error'
-        this.apiStatusText = 'Offline'
+        this.apiStatusText = `Offline: ${error.message}`
       }
     },
     async sendMessage() {
@@ -207,23 +180,16 @@ export default {
         return
       }
 
-      if (!this.isConfigLoaded) {
-        this.response = {
-          success: false,
-          message: 'Configuration not loaded. Please refresh the page.',
-          timestamp: new Date().toISOString()
-        }
-        return
-      }
-
       this.isLoading = true
       this.response = null
 
       const headers = {
-        'Content-Type': 'text/plain'
+        'Content-Type': 'text/plain',
+        'Accept': 'application/json'
       }
 
       try {
+        console.log('Sending message to:', `${this.apiUrl}/send`)
         const response = await fetch(`${this.apiUrl}/send`, {
           method: 'POST',
           headers,
@@ -234,7 +200,8 @@ export default {
         this.debugInfo = {
           lastRequest: new Date().toISOString(),
           lastResponse: response.status,
-          headers
+          headers,
+          requestUrl: `${this.apiUrl}/send`
         }
 
         if (response.ok) {
@@ -253,13 +220,15 @@ export default {
           throw new Error(`Server error: ${response.status} - ${errorText}`)
         }
       } catch (error) {
+        console.error('Send message failed:', error)
         this.response = {
           success: false,
           message: `Error: ${error.message}`,
           timestamp: new Date().toISOString(),
           details: {
             error: error.message,
-            stack: error.stack
+            stack: error.stack,
+            url: `${this.apiUrl}/send`
           }
         }
       } finally {
