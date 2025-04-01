@@ -50,7 +50,8 @@ export default {
           method: 'POST',
           headers: {
             'Content-Type': 'text/plain',
-            'Accept': 'text/plain'
+            'Accept': 'text/plain',
+            'Origin': window.location.origin
           },
           mode: 'cors',
           credentials: 'omit',
@@ -58,8 +59,13 @@ export default {
         })
 
         const responseText = await response.text()
-        this.response = responseText
-        this.message = ''
+        
+        if (response.ok) {
+          this.response = responseText
+          this.message = ''
+        } else {
+          throw new Error(`Server responded with status: ${response.status}`)
+        }
       } catch (error) {
         console.error('Send message failed:', error)
         this.response = `Error: ${error.message}`
