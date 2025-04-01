@@ -138,7 +138,7 @@ export default {
     }, 5000)
   },
   beforeDestroy() {
-    // Clean up interval when component is destroyed
+    // Clean up the interval when component is destroyed
     if (this.configCheckInterval) {
       clearInterval(this.configCheckInterval)
     }
@@ -164,33 +164,42 @@ export default {
     },
     async loadConfig() {
       try {
-        // Fetch the config.js file directly
+        // Fetch the config file directly
         const response = await fetch('/config.js')
         if (!response.ok) {
           throw new Error(`Failed to load config: ${response.status}`)
         }
         
         // Get the current config content
-        const configContent = await response.text()
+        const configText = await response.text()
         
-        // Execute the config content in a new context
-        const configContext = {}
-        const configScript = new Function('window', configContent)
-        configScript(configContext)
+        // Parse the config content
+        const configMatch = configText.match(/window\.runtimeConfig\s*=\s*({[\s\S]*?});/)
+        if (!configMatch) {
+          throw new Error('Invalid config format')
+        }
         
-        // Check if the config was updated
-        const newApiUrl = configContext.runtimeConfig?.VUE_APP_API_URL
-        if (newApiUrl && newApiUrl !== this.apiUrl) {
-          console.log('Config updated:', newApiUrl)
-          this.apiUrl = newApiUrl
+        // Evaluate the config object safely
+        const configStr = configMatch[1]
+        const config = JSON.parse(configStr.replace(/'/g, '"'))
+        
+        // Update the API URL if it has changed
+        if (config.VUE_APP_API_URL !== this.apiUrl) {
+          this.apiUrl = config.VUE_APP_API_URL
           this.configStatus = 'online'
           this.configStatusText = 'Loaded'
           this.isConfigLoaded = true
           this.configError = null
+          
+          // Update debug info
+          if (this.debugInfo) {
+            this.debugInfo.config = config
+          }
+          
+          // Check API status with new URL
           this.checkApiStatus()
         }
       } catch (error) {
-        console.error('Error loading config:', error)
         this.configStatus = 'error'
         this.configStatusText = 'Error'
         this.configError = `Error loading config: ${error.message}`
