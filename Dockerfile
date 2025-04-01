@@ -29,10 +29,8 @@ COPY --from=build-stage /app/dist /usr/share/nginx/html
 RUN mkdir -p /var/cache/nginx /var/run && \
     chown -R nginx:nginx /var/cache/nginx /var/run && \
     chmod -R 755 /var/cache/nginx /var/run && \
-    chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod 755 /usr/share/nginx/html && \
     touch /usr/share/nginx/html/config.js && \
-    chown nginx:nginx /usr/share/nginx/html/config.js && \
+    chown -R nginx:nginx /usr/share/nginx/html && \
     chmod 644 /usr/share/nginx/html/config.js
 
 # Add health check
