@@ -176,13 +176,16 @@ export default {
         const text = await response.text()
         
         // Try to extract the URL using regex
-        const urlMatch = text.match(/VUE_APP_API_URL:\s*['"]([^'"]+)['"]/)
+        const urlMatch = text.match(/VUE_APP_API_URL:\s*["']([^"']+)["']/)
         if (urlMatch && urlMatch[1]) {
           this.apiUrl = urlMatch[1]
           this.configStatus = 'success'
           this.configStatusText = 'Configuration loaded successfully'
           this.isConfigLoaded = true
           this.configError = null
+          
+          // Check API status with new URL
+          this.checkApiStatus()
         } else {
           throw new Error('Invalid config format')
         }
