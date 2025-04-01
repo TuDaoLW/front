@@ -117,7 +117,7 @@ export default {
       isLoading: false,
       response: null,
       apiUrl: 'http://kafka-producer-service-kafka.apps.okd4.elc.com',
-      apiStatus: 'unknown',
+      apiStatus: 'unknown jeet',
       apiStatusText: 'Checking...',
       configStatus: 'success',
       configStatusText: 'Using fixed configuration',
