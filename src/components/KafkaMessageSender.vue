@@ -117,7 +117,7 @@ export default {
       isLoading: false,
       response: null,
       apiUrl: 'http://kafka-producer-service-kafka.apps.okd4.elc.com',
-      apiStatus: 'unknown jeet',
+      apiStatus: 'unknown',
       apiStatusText: 'Checking...',
       configStatus: 'success',
       configStatusText: 'Using fixed configuration',
@@ -196,12 +196,22 @@ export default {
           method: 'POST',
           headers,
           body: this.message,
-          mode: 'cors',  // Explicitly set CORS mode
-          credentials: 'omit'  // Don't send credentials
+          mode: 'cors',
+          credentials: 'omit'
         })
 
         console.log('Response status:', response.status)
         console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
+        // Try to read the response body
+        let responseBody
+        try {
+          responseBody = await response.text()
+          console.log('Response body:', responseBody)
+        } catch (e) {
+          console.error('Error reading response body:', e)
+          responseBody = 'Could not read response body'
+        }
 
         // Update debug information
         this.debugInfo = {
@@ -209,7 +219,8 @@ export default {
           lastResponse: response.status,
           headers,
           requestUrl: `${this.apiUrl}/send`,
-          responseHeaders: Object.fromEntries(response.headers.entries())
+          responseHeaders: Object.fromEntries(response.headers.entries()),
+          responseBody
         }
 
         if (response.ok) {
@@ -219,13 +230,13 @@ export default {
             timestamp: new Date().toISOString(),
             details: {
               status: response.status,
-              statusText: response.statusText
+              statusText: response.statusText,
+              body: responseBody
             }
           }
           this.message = ''
         } else {
-          const errorText = await response.text()
-          throw new Error(`Server error: ${response.status} - ${errorText}`)
+          throw new Error(`Server error: ${response.status} - ${responseBody}`)
         }
       } catch (error) {
         console.error('Send message failed:', error)
